@@ -51,8 +51,10 @@ func NewServerScramAuth(hashBuild func() hash.Hash) *ServerScramAuth {
 				Params: NewParams()}}}
 }
 
-func (server *ServerScramAuth) Challenge(r io.Reader, salt []byte, iter int) (io.Reader, error) {
-	return server.scramAuth.serverChallenge(r, salt, iter)
+type FindSaltIter func(username []byte) (salt []byte, iter int, err error)
+
+func (server *ServerScramAuth) Challenge(r io.Reader, finder FindSaltIter) (io.Reader, error) {
+	return server.scramAuth.serverChallenge(r, finder)
 }
 
 func (server *ServerScramAuth) Signature(r io.Reader, saltedPassword []byte) (io.Reader, error) {
@@ -95,13 +97,20 @@ func (sa *scramAuth) clientRequest(authzid, username string) io.Reader {
 	return &buf
 }
 
-func (sa *scramAuth) serverChallenge(r io.Reader, salt []byte, iter int) (io.Reader, error) {
+func (sa *scramAuth) serverChallenge(r io.Reader, find FindSaltIter) (io.Reader, error) {
 	if err := sa.gs2Header.Decode(r); err != nil {
 		return nil, err
 	}
+	username, ok := sa.gs2Header.Params.Val([]byte("n"))
+	if !ok {
+		return nil, errors.New("no username found")
+	}
+	var err error
+	sa.salt, sa.iter, err = find(username)
+	if err != nil {
+		return nil, err
+	}
 	sa.sNonce = sa.genNonce(16)
-	sa.salt = salt
-	sa.iter = iter
 	msg := base64.StdEncoding.EncodeToString(sa.challengeMsg())
 	return bytes.NewBuffer([]byte(msg)), nil
 }

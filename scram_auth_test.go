@@ -31,9 +31,9 @@ func TestServerChallenge(t *testing.T) {
 	cnonce, _ := auth.scramAuth.gs2Header.Params.Val([]byte{'r'})
 	input := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("p=tls-unique,a=hello-world,n=yang-zhong,r=%s", cnonce)))
 	buf := bytes.NewBuffer([]byte(input))
-	salt := []byte("12345678")
-	i := 4
-	r, err := auth.Challenge(buf, salt, i)
+	r, err := auth.Challenge(buf, func(username []byte) (salt []byte, iter int, err error) {
+		return []byte("12345678"), 4, nil
+	})
 	if err != nil {
 		t.Fatalf("challenge error")
 	}
@@ -55,10 +55,10 @@ func TestAuth(t *testing.T) {
 	// genarate client first message
 	r := auth1.Request("hello-world", "yang-zhong")
 	auth2 := NewServerScramAuth(sha256.New)
-	salt := []byte("12345678")
-	i := 4
 	// generate server first message
-	cr, _ := auth2.Challenge(r, salt, i)
+	cr, _ := auth2.Challenge(r, func(username []byte) (salt []byte, iter int, err error) {
+		return []byte("12345678"), 4, nil
+	})
 	// response
 	r, e := auth1.Response(cr, "123456")
 	if e != nil {
