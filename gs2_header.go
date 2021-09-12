@@ -45,9 +45,6 @@ type Gs2Header struct {
 	ChannelBinding channelBinding
 	Authzid        []byte
 	Params         *Params
-
-	state  int
-	offset int
 }
 
 func (header *Gs2Header) Encode(w io.Writer) error {
