@@ -18,10 +18,11 @@ type ClientScramAuth struct {
 	scramAuth *scramAuth
 }
 
-func NewClientScramAuth(channelBinding channelBinding, hashBuild func() hash.Hash) *ClientScramAuth {
+func NewClientScramAuth(hashBuild func() hash.Hash, channelBinding channelBinding, cbData []byte) *ClientScramAuth {
 	return &ClientScramAuth{
 		scramAuth: &scramAuth{
 			channelBinding: channelBinding,
+			cbData:         cbData,
 			hashBuild:      hashBuild,
 			gs2Header: Gs2Header{
 				Params: NewParams()}}}
@@ -43,10 +44,12 @@ type ServerScramAuth struct {
 	scramAuth *scramAuth
 }
 
-func NewServerScramAuth(hashBuild func() hash.Hash) *ServerScramAuth {
+func NewServerScramAuth(hashBuild func() hash.Hash, channelBinding channelBinding, cbData []byte) *ServerScramAuth {
 	return &ServerScramAuth{
 		scramAuth: &scramAuth{
-			hashBuild: hashBuild,
+			channelBinding: channelBinding,
+			cbData:         cbData,
+			hashBuild:      hashBuild,
 			gs2Header: Gs2Header{
 				Params: NewParams()}}}
 }
@@ -76,6 +79,7 @@ func (server *ServerScramAuth) SaltedPassword(password, salt []byte, iter int) [
 type scramAuth struct {
 	hashBuild      func() hash.Hash
 	channelBinding channelBinding
+	cbData         []byte
 
 	gs2Header    Gs2Header
 	sNonce, salt []byte
@@ -248,7 +252,15 @@ func (sa *scramAuth) clientFinalMsgWithoutProof(sNonce []byte) ([]byte, error) {
 	}
 	nonce := append(cNonce, sNonce...)
 	out := []byte("c=")
-	out = append(out, []byte("biws")...)
+	switch sa.channelBinding {
+	case None:
+		out = append(out, []byte("biws")...)
+	case TlsUnique:
+		out = append(out, []byte(base64.StdEncoding.EncodeToString(sa.cbData))...)
+	}
+	if sa.channelBinding != None {
+	} else {
+	}
 	out = append(out, ",r="...)
 	out = append(out, nonce...)
 	return out, nil
@@ -295,6 +307,9 @@ func (sa *scramAuth) clientVerify(r io.Reader, password string) error {
 }
 
 func (sa *scramAuth) serverVerify(r io.Reader, saltedPassword []byte) error {
+	if sa.channelBinding != sa.gs2Header.ChannelBinding {
+		return errors.New("channel binding type not match")
+	}
 	p := NewParams()
 	if err := NewEncoding().Decode(r, p); err != nil {
 		return err

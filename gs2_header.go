@@ -10,9 +10,11 @@ import (
 type channelBinding string
 
 const (
-	TlsUnique = channelBinding("tls-unique")
-	None      = channelBinding("none")
-	Unset     = channelBinding("unset")
+	TlsUnique          = channelBinding("tls-unique")
+	TlsServerEndPoint  = channelBinding("tls-server-end-point")
+	TlsUniqueForTelnet = channelBinding("tls-unqiue-for-telnet")
+	None               = channelBinding("none")
+	Unset              = channelBinding("unset")
 )
 
 //    UTF8-1-safe    = %x01-2B / %x2D-3C / %x3E-7F

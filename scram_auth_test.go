@@ -11,7 +11,7 @@ import (
 )
 
 func TestClientStart(t *testing.T) {
-	auth := NewClientScramAuth(TlsUnique, sha1.New)
+	auth := NewClientScramAuth(sha1.New, TlsUnique, []byte{'1', '2', '3'})
 	r := auth.Request("hello-world", "yang-zhong")
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
@@ -27,7 +27,7 @@ func TestClientStart(t *testing.T) {
 }
 
 func TestServerChallenge(t *testing.T) {
-	auth := NewServerScramAuth(sha1.New)
+	auth := NewServerScramAuth(sha1.New, TlsUnique, []byte{'1', '2', '3'})
 	cnonce, _ := auth.scramAuth.gs2Header.Params.Val([]byte{'r'})
 	input := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("p=tls-unique,a=hello-world,n=yang-zhong,r=%s", cnonce)))
 	buf := bytes.NewBuffer([]byte(input))
@@ -51,10 +51,10 @@ func TestServerChallenge(t *testing.T) {
 }
 
 func TestAuth(t *testing.T) {
-	auth1 := NewClientScramAuth(TlsUnique, sha256.New)
+	auth1 := NewClientScramAuth(sha256.New, TlsUnique, []byte{'1', '2', '3'})
 	// genarate client first message
 	r := auth1.Request("hello-world", "yang-zhong")
-	auth2 := NewServerScramAuth(sha256.New)
+	auth2 := NewServerScramAuth(sha256.New, TlsUnique, []byte{'1', '2', '3'})
 	// generate server first message
 	cr, _ := auth2.Challenge(r, func(username []byte) (salt []byte, iter int, err error) {
 		return []byte("12345678"), 4, nil
