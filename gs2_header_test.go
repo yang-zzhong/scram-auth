@@ -13,7 +13,7 @@ func TestEncode(t *testing.T) {
 		{Key: []byte{'n'}, Val: []byte("helloworld")},
 		{Key: []byte{'r'}, Val: []byte("123456")}}...)
 
-	header := Gs2Header{Authzid: []byte("123456"), ChannelBinding: TlsUnique, Params: p}
+	header := Gs2Header{Authzid: []byte("123456"), CB: TlsUnique, Params: p}
 
 	var buf bytes.Buffer
 	header.Encode(&buf)
@@ -35,7 +35,7 @@ func TestDecode(t *testing.T) {
 	header.Encode(&buf2)
 	p := header.Params.All()
 	if string(header.Authzid) != "123456" ||
-		channelBinding(string(header.ChannelBinding)) != TlsUnique ||
+		CB(string(header.CB)) != TlsUnique ||
 		header.Params.Len() != 2 ||
 		string(p[0].Key) != "n" ||
 		string(p[0].Val) != "helloworld" ||

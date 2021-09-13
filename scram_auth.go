@@ -18,7 +18,7 @@ type ClientScramAuth struct {
 	scramAuth *scramAuth
 }
 
-func NewClientScramAuth(hashBuild func() hash.Hash, channelBinding channelBinding, cbData []byte) *ClientScramAuth {
+func NewClientScramAuth(hashBuild func() hash.Hash, channelBinding CB, cbData []byte) *ClientScramAuth {
 	return &ClientScramAuth{
 		scramAuth: &scramAuth{
 			channelBinding: channelBinding,
@@ -44,7 +44,7 @@ type ServerScramAuth struct {
 	scramAuth *scramAuth
 }
 
-func NewServerScramAuth(hashBuild func() hash.Hash, channelBinding channelBinding, cbData []byte) *ServerScramAuth {
+func NewServerScramAuth(hashBuild func() hash.Hash, channelBinding CB, cbData []byte) *ServerScramAuth {
 	return &ServerScramAuth{
 		scramAuth: &scramAuth{
 			channelBinding: channelBinding,
@@ -78,7 +78,7 @@ func (server *ServerScramAuth) SaltedPassword(password, salt []byte, iter int) [
 
 type scramAuth struct {
 	hashBuild      func() hash.Hash
-	channelBinding channelBinding
+	channelBinding CB
 	cbData         []byte
 
 	gs2Header    Gs2Header
@@ -93,9 +93,9 @@ func (sa *scramAuth) clientRequest(authzid, username string) io.Reader {
 		{Key: []byte("r"), Val: sa.genNonce(16)},
 	}...)
 	sa.gs2Header = Gs2Header{
-		Authzid:        []byte(authzid),
-		ChannelBinding: sa.channelBinding,
-		Params:         p}
+		Authzid: []byte(authzid),
+		CB:      sa.channelBinding,
+		Params:  p}
 	var buf bytes.Buffer
 	sa.gs2Header.Encode(&buf)
 	return &buf
@@ -307,7 +307,7 @@ func (sa *scramAuth) clientVerify(r io.Reader, password string) error {
 }
 
 func (sa *scramAuth) serverVerify(r io.Reader, saltedPassword []byte) error {
-	if sa.channelBinding != sa.gs2Header.ChannelBinding {
+	if sa.channelBinding != sa.gs2Header.CB {
 		return errors.New("channel binding type not match")
 	}
 	p := NewParams()

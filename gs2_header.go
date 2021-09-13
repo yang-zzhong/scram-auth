@@ -7,14 +7,14 @@ import (
 	"io"
 )
 
-type channelBinding string
+type CB string
 
 const (
-	TlsUnique          = channelBinding("tls-unique")
-	TlsServerEndPoint  = channelBinding("tls-server-end-point")
-	TlsUniqueForTelnet = channelBinding("tls-unqiue-for-telnet")
-	None               = channelBinding("none")
-	Unset              = channelBinding("unset")
+	TlsUnique          = CB("tls-unique")
+	TlsServerEndPoint  = CB("tls-server-end-point")
+	TlsUniqueForTelnet = CB("tls-unqiue-for-telnet")
+	None               = CB("none")
+	Unset              = CB("unset")
 )
 
 //    UTF8-1-safe    = %x01-2B / %x2D-3C / %x3E-7F
@@ -44,14 +44,14 @@ const (
 //    gs2-header = [gs2-nonstd-flag ","] gs2-cb-flag "," [gs2-authzid] ","
 //                        ;; The GS2 header is gs2-header.
 type Gs2Header struct {
-	ChannelBinding channelBinding
-	Authzid        []byte
-	Params         *Params
+	CB      CB
+	Authzid []byte
+	Params  *Params
 }
 
 func (header *Gs2Header) Encode(w io.Writer) error {
 	p := NewParams()
-	switch header.ChannelBinding {
+	switch header.CB {
 	case None:
 		p.Append(Param{Key: []byte{'n'}})
 	case TlsUnique:
@@ -86,9 +86,9 @@ func (header *Gs2Header) Decode(r io.Reader) error {
 	}
 	switch string(p[0].Key) {
 	case "p":
-		header.ChannelBinding = channelBinding(string(p[0].Val))
+		header.CB = CB(string(p[0].Val))
 	case "n", "y":
-		header.ChannelBinding = None
+		header.CB = None
 	default:
 		return errors.New("invalid gs2 headder")
 	}
