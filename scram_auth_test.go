@@ -6,15 +6,15 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"testing"
 )
 
-func TestClientStart(t *testing.T) {
+func TestClientWriteReqMsg(t *testing.T) {
 	auth := NewClientScramAuth(sha1.New, TlsUnique, []byte{'1', '2', '3'})
-	r := auth.Request("hello-world", "yang-zhong")
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	if err := auth.WriteReqMsg("hello-world", "yang-zhong", &buf); err != nil {
+		t.Fatalf("write req msg error: %s", err.Error())
+	}
 	cnonce, _ := auth.scramAuth.gs2Header.Params.Val([]byte{'r'})
 	rsc := fmt.Sprintf("p=tls-unique,a=hello-world,n=yang-zhong,r=%s", cnonce)
 	res := base64.StdEncoding.EncodeToString([]byte(rsc))
@@ -31,14 +31,12 @@ func TestServerChallenge(t *testing.T) {
 	cnonce, _ := auth.scramAuth.gs2Header.Params.Val([]byte{'r'})
 	input := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("p=tls-unique,a=hello-world,n=yang-zhong,r=%s", cnonce)))
 	buf := bytes.NewBuffer([]byte(input))
-	r, err := auth.Challenge(buf, func(username []byte) (salt []byte, iter int, err error) {
-		return []byte("12345678"), 4, nil
-	})
-	if err != nil {
-		t.Fatalf("challenge error")
-	}
 	var res bytes.Buffer
-	io.Copy(&res, r)
+	if err := auth.WriteChallengeMsg(buf, func(username []byte) (salt []byte, iter int, err error) {
+		return []byte("12345678"), 4, nil
+	}, &res); err != nil {
+		t.Fatalf("write challenge msg error: %s", err.Error())
+	}
 	rr := fmt.Sprintf("r=%s,s=%s,i=%d", auth.scramAuth.sNonce, auth.scramAuth.salt, auth.scramAuth.iter)
 	rrr := base64.StdEncoding.EncodeToString([]byte(rr))
 	if res.String() != rrr {
@@ -52,28 +50,34 @@ func TestServerChallenge(t *testing.T) {
 
 func TestAuth(t *testing.T) {
 	auth1 := NewClientScramAuth(sha256.New, TlsUnique, []byte{'1', '2', '3'})
+	var rmb bytes.Buffer
 	// genarate client first message
-	r := auth1.Request("hello-world", "yang-zhong")
+	if err := auth1.WriteReqMsg("hello-world", "yang-zhong", &rmb); err != nil {
+		t.Fatalf("write req msg error: %s", err.Error())
+	}
 	auth2 := NewServerScramAuth(sha256.New, TlsUnique, []byte{'1', '2', '3'})
 	// generate server first message
-	cr, _ := auth2.Challenge(r, func(username []byte) (salt []byte, iter int, err error) {
+	var cmb bytes.Buffer
+	if err := auth2.WriteChallengeMsg(&rmb, func(username []byte) (salt []byte, iter int, err error) {
 		return []byte("12345678"), 4, nil
-	})
+	}, &cmb); err != nil {
+		t.Fatalf("write challenge msg error: %s", err.Error())
+	}
+	var crb bytes.Buffer
 	// response
-	r, e := auth1.Response(cr, "123456")
-	if e != nil {
+	if e := auth1.WriteResMsg(&cmb, "123456", &crb); e != nil {
 		t.Fatalf("client response error: %s", e.Error())
 	}
 	saltedPassword := auth2.SaltedPassword([]byte("123456"), []byte("12345678"), 4)
-	err := auth2.Verify(r, saltedPassword)
+	err := auth2.Verify(&crb, saltedPassword)
 	if err != nil {
 		t.Fatalf("server verify error: %s", err.Error())
 	}
-	r, err = auth2.Signature(r, saltedPassword)
-	if err != nil {
+	var smb bytes.Buffer
+	if err := auth2.WriteSignatureMsg(&crb, saltedPassword, &smb); err != nil {
 		t.Fatalf("server signature error: %s", err.Error())
 	}
-	if err := auth1.Verify(r, "123456"); err != nil {
+	if err := auth1.Verify(&smb, "123456"); err != nil {
 		t.Fatalf("client verify error: %s", err.Error())
 	}
 }

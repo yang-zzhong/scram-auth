@@ -16,7 +16,9 @@ func TestEncode(t *testing.T) {
 	header := Gs2Header{Authzid: []byte("123456"), CB: TlsUnique, Params: p}
 
 	var buf bytes.Buffer
-	header.Encode(&buf)
+	if err := header.Encode(&buf); err != nil {
+		t.Fatalf("encoding gs2 header error: %s", err.Error())
+	}
 	res := base64.StdEncoding.EncodeToString([]byte("p=tls-unique,a=123456,n=helloworld,r=123456"))
 	if buf.String() != res {
 		fmt.Printf("%s - %s\n", buf.String(), res)
@@ -31,8 +33,6 @@ func TestDecode(t *testing.T) {
 	if err := header.Decode(buf1); err != nil {
 		t.Fatalf(err.Error())
 	}
-	var buf2 bytes.Buffer
-	header.Encode(&buf2)
 	p := header.Params.All()
 	if string(header.Authzid) != "123456" ||
 		CB(string(header.CB)) != TlsUnique ||

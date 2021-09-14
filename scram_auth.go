@@ -28,12 +28,12 @@ func NewClientScramAuth(hashBuild func() hash.Hash, channelBinding CB, cbData []
 				Params: NewParams()}}}
 }
 
-func (client *ClientScramAuth) Request(authzid, username string) io.Reader {
-	return client.scramAuth.clientRequest(authzid, username)
+func (client *ClientScramAuth) WriteReqMsg(authzid, username string, w io.Writer) error {
+	return client.scramAuth.clientRequest(authzid, username, w)
 }
 
-func (client *ClientScramAuth) Response(r io.Reader, password string) (io.Reader, error) {
-	return client.scramAuth.clientResponse(r, password)
+func (client *ClientScramAuth) WriteResMsg(r io.Reader, password string, w io.Writer) error {
+	return client.scramAuth.clientResponse(r, password, w)
 }
 
 func (client *ClientScramAuth) Verify(r io.Reader, password string) error {
@@ -56,12 +56,12 @@ func NewServerScramAuth(hashBuild func() hash.Hash, channelBinding CB, cbData []
 
 type FindSaltIter func(username []byte) (salt []byte, iter int, err error)
 
-func (server *ServerScramAuth) Challenge(r io.Reader, finder FindSaltIter) (io.Reader, error) {
-	return server.scramAuth.serverChallenge(r, finder)
+func (server *ServerScramAuth) WriteChallengeMsg(r io.Reader, finder FindSaltIter, w io.Writer) error {
+	return server.scramAuth.serverChallenge(r, finder, w)
 }
 
-func (server *ServerScramAuth) Signature(r io.Reader, saltedPassword []byte) (io.Reader, error) {
-	return server.scramAuth.serverSignature(r, saltedPassword)
+func (server *ServerScramAuth) WriteSignatureMsg(r io.Reader, saltedPassword []byte, w io.Writer) error {
+	return server.scramAuth.serverSignature(r, saltedPassword, w)
 }
 
 func (server *ServerScramAuth) Gs2Header() Gs2Header {
@@ -86,7 +86,7 @@ type scramAuth struct {
 	iter         int
 }
 
-func (sa *scramAuth) clientRequest(authzid, username string) io.Reader {
+func (sa *scramAuth) clientRequest(authzid, username string, w io.Writer) error {
 	p := NewParams()
 	p.Append([]Param{
 		{Key: []byte("n"), Val: []byte(username)},
@@ -96,27 +96,24 @@ func (sa *scramAuth) clientRequest(authzid, username string) io.Reader {
 		Authzid: []byte(authzid),
 		CB:      sa.channelBinding,
 		Params:  p}
-	var buf bytes.Buffer
-	sa.gs2Header.Encode(&buf)
-	return &buf
+	return sa.gs2Header.Encode(w)
 }
 
-func (sa *scramAuth) serverChallenge(r io.Reader, find FindSaltIter) (io.Reader, error) {
+func (sa *scramAuth) serverChallenge(r io.Reader, find FindSaltIter, w io.Writer) error {
 	if err := sa.gs2Header.Decode(r); err != nil {
-		return nil, err
+		return err
 	}
 	username, ok := sa.gs2Header.Params.Val([]byte("n"))
 	if !ok {
-		return nil, errors.New("no username found")
+		return errors.New("no username found")
 	}
 	var err error
 	sa.salt, sa.iter, err = find(username)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sa.sNonce = sa.genNonce(16)
-	msg := base64.StdEncoding.EncodeToString(sa.challengeMsg())
-	return bytes.NewBuffer([]byte(msg)), nil
+	return FullWrite(w, []byte(base64.StdEncoding.EncodeToString(sa.challengeMsg())))
 }
 
 func (sa *scramAuth) challengeMsg() []byte {
@@ -140,36 +137,36 @@ func (sa *scramAuth) challengeMsg() []byte {
 //      ClientProof     := ClientKey XOR ClientSignature
 //      ServerKey       := HMAC(SaltedPassword, "Server Key")
 //      ServerSignature := HMAC(ServerKey, AuthMessage)
-func (sa *scramAuth) clientResponse(r io.Reader, password string) (io.Reader, error) {
+func (sa *scramAuth) clientResponse(r io.Reader, password string, w io.Writer) error {
 	var buf bytes.Buffer
 	_, err := io.Copy(&buf, base64.NewDecoder(base64.StdEncoding, r))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	sa.sNonce, sa.salt, sa.iter, err = sa.rsi(buf.String())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	authMsg, err := sa.authMsg()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	saltedPassword := sa.saltedPassword([]byte(password), []byte(sa.salt), sa.iter)
 	clientKey := sa.hmac(saltedPassword, []byte("Client Key"))
 	storedKey := sa.hash(clientKey)
 	signature := sa.hmac(storedKey, authMsg)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	clientProof := sa.xor(clientKey, signature)
 	out, err := sa.clientFinalMsgWithoutProof(sa.sNonce)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	out = append(out, ",p="...)
 	out = append(out, []byte(base64.StdEncoding.EncodeToString(clientProof))...)
-
-	return bytes.NewBuffer(out), nil
+	_, err = w.Write(out)
+	return err
 }
 
 func (sa *scramAuth) authMsg() ([]byte, error) {
@@ -266,20 +263,18 @@ func (sa *scramAuth) clientFinalMsgWithoutProof(sNonce []byte) ([]byte, error) {
 	return out, nil
 }
 
-func (sa *scramAuth) serverSignature(r io.Reader, saltedPassword []byte) (io.Reader, error) {
+func (sa *scramAuth) serverSignature(r io.Reader, saltedPassword []byte, w io.Writer) error {
 	authMsg, err := sa.authMsg()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	serverKey := sa.hmac(saltedPassword, []byte("Server Key"))
 
 	signature := sa.hmac(serverKey, authMsg)
 	p := NewParams()
 	p.Append(Param{Key: []byte{'v'}, Val: []byte(base64.StdEncoding.EncodeToString(signature))})
-	var buf bytes.Buffer
-	NewEncoding().Encode(&buf, p)
 
-	return &buf, nil
+	return NewEncoding().Encode(w, p)
 }
 
 func (sa *scramAuth) clientVerify(r io.Reader, password string) error {

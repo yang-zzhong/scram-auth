@@ -84,31 +84,24 @@ func (encoding *Encoding) Encode(w io.Writer, p *Params) (err error) {
 			err = e.(error)
 		}
 	}()
+	write := func(w io.Writer, b []byte) {
+		if err := FullWrite(w, b); err != nil {
+			panic(err)
+		}
+	}
 	params := p.All()
 	l := len(params)
 	for i, p := range params {
-		encoding.write(w, p.Key)
+		write(w, p.Key)
 		if len(p.Val) != 0 {
-			encoding.write(w, []byte{'='})
+			write(w, []byte{'='})
 		}
-		encoding.write(w, p.Val)
+		write(w, p.Val)
 		if i < l-1 {
-			encoding.write(w, []byte{','})
+			write(w, []byte{','})
 		}
 	}
 	return
-}
-
-func (encoding *Encoding) write(w io.Writer, bs []byte) {
-	total := len(bs)
-	wrote := 0
-	for wrote < total {
-		l, err := w.Write(bs[wrote:])
-		if err != nil {
-			panic(err)
-		}
-		wrote = wrote + l
-	}
 }
 
 func (encoding *Encoding) Decode(r io.Reader, params *Params) error {

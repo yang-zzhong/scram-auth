@@ -67,8 +67,7 @@ func (header *Gs2Header) Encode(w io.Writer) error {
 	if err := NewEncoding().Encode(&buf, p); err != nil {
 		return err
 	}
-	_, err := w.Write([]byte(base64.StdEncoding.EncodeToString(buf.Bytes())))
-	return err
+	return FullWrite(w, []byte(base64.StdEncoding.EncodeToString(buf.Bytes())))
 }
 
 func (header *Gs2Header) Decode(r io.Reader) error {
