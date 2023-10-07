@@ -3,6 +3,9 @@ package scramauth
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"errors"
 	"hash"
@@ -12,6 +15,28 @@ import (
 	"strconv"
 
 	"golang.org/x/crypto/pbkdf2"
+	"golang.org/x/crypto/sha3"
+)
+
+const (
+	SCRAM_SHA_1         = "SCRAM-SHA-1"
+	SCRAM_SHA_1_PLUS    = "SCRAM-SHA-1-PLUS"
+	SCRAM_SHA_256       = "SCRAM-SHA-256"
+	SCRAM_SHA_256_PLUS  = "SCRAM-SHA-256-PLUS"
+	SCRAM_SHA_512       = "SCRAM-SHA-512"
+	SCRAM_SHA_512_PLUS  = "SCRAM-SHA-512-PLUS"
+	SCRAM_SHA_224       = "SCRAM-SHA-224"
+	SCRAM_SHA_224_PLUS  = "SCRAM-SHA-224-PLUS"
+	SCRAM_SHA_384       = "SCRAM-SHA-384"
+	SCRAM_SHA_384_PLUS  = "SCRAM-SHA-384-PLUS"
+	SCRAM_SHA3_224      = "SCRAM-SHA3-224"
+	SCRAM_SHA3_224_PLUS = "SCRAM-SHA3-224-PLUS"
+	SCRAM_SHA3_256      = "SCRAM-SHA3-256"
+	SCRAM_SHA3_256_PLUS = "SCRAM-SHA3-256-PLUS"
+	SCRAM_SHA3_384      = "SCRAM-SHA3-384"
+	SCRAM_SHA3_384_PLUS = "SCRAM-SHA3-384-PLUS"
+	SCRAM_SHA3_512      = "SCRAM-SHA3-512"
+	SCRAM_SHA3_512_PLUS = "SCRAM-SHA3-512-PLUS"
 )
 
 type ClientScramAuth struct {
@@ -128,15 +153,17 @@ func (sa *scramAuth) challengeMsg() []byte {
 	return buf.Bytes()
 }
 
-//      ClientKey       := HMAC(SaltedPassword, "Client Key")
-//      StoredKey       := H(ClientKey)
-//      AuthMessage     := client-first-message-bare + "," +
-//                         server-first-message + "," +
-//                         client-final-message-without-proof
-//      ClientSignature := HMAC(StoredKey, AuthMessage)
-//      ClientProof     := ClientKey XOR ClientSignature
-//      ServerKey       := HMAC(SaltedPassword, "Server Key")
-//      ServerSignature := HMAC(ServerKey, AuthMessage)
+// ClientKey       := HMAC(SaltedPassword, "Client Key")
+// StoredKey       := H(ClientKey)
+// AuthMessage     := client-first-message-bare + "," +
+//
+//	server-first-message + "," +
+//	client-final-message-without-proof
+//
+// ClientSignature := HMAC(StoredKey, AuthMessage)
+// ClientProof     := ClientKey XOR ClientSignature
+// ServerKey       := HMAC(SaltedPassword, "Server Key")
+// ServerSignature := HMAC(ServerKey, AuthMessage)
 func (sa *scramAuth) clientResponse(r io.Reader, password string, w io.Writer) error {
 	var buf bytes.Buffer
 	_, err := io.Copy(&buf, base64.NewDecoder(base64.StdEncoding, r))
@@ -366,4 +393,28 @@ func (scram *scramAuth) genNonce(n int) []byte {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return b
+}
+
+func HashBuild(mechanism string) func() hash.Hash {
+	switch mechanism {
+	case SCRAM_SHA_1, SCRAM_SHA_1_PLUS:
+		return sha1.New
+	case SCRAM_SHA_256, SCRAM_SHA_256_PLUS:
+		return sha256.New
+	case SCRAM_SHA_512, SCRAM_SHA_512_PLUS:
+		return sha512.New
+	case SCRAM_SHA_224, SCRAM_SHA_224_PLUS:
+		return sha256.New224
+	case SCRAM_SHA_384, SCRAM_SHA_384_PLUS:
+		return sha512.New384
+	case SCRAM_SHA3_224, SCRAM_SHA3_224_PLUS:
+		return sha3.New224
+	case SCRAM_SHA3_256, SCRAM_SHA3_256_PLUS:
+		return sha3.New256
+	case SCRAM_SHA3_384, SCRAM_SHA3_384_PLUS:
+		return sha3.New384
+	case SCRAM_SHA3_512, SCRAM_SHA3_512_PLUS:
+		return sha3.New512
+	}
+	return nil
 }
