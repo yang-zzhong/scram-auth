@@ -1,7 +1,10 @@
 package scramauth
 
 import (
+	"hash"
 	"io"
+
+	"golang.org/x/crypto/pbkdf2"
 )
 
 func FullWrite(w io.Writer, b []byte) error {
@@ -15,4 +18,8 @@ func FullWrite(w io.Writer, b []byte) error {
 		wrote = wrote + l
 	}
 	return nil
+}
+
+func SaltPassword(h func() hash.Hash, password, salt []byte, iter int) []byte {
+	return pbkdf2.Key(password, salt, iter, h().Size(), h)
 }

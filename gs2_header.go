@@ -102,9 +102,9 @@ func (header *Gs2Header) Decode(r io.Reader) error {
 	default:
 		return errors.New("invalid gs2 headder")
 	}
-	if !bytes.Equal(p[1].Key, []byte{'a'}) {
-		return errors.New("invalid gs2 headder")
-	}
+	// if !bytes.Equal(p[1].Key, []byte{'a'}) {
+	// 	return errors.New("invalid gs2 headder")
+	// }
 	header.Authzid = p[1].Val
 	header.Params = NewParams()
 	header.Params.Append(p[2:]...)

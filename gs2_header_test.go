@@ -26,6 +26,25 @@ func TestEncode(t *testing.T) {
 	}
 }
 
+func TestEncode_noAuthId(t *testing.T) {
+	str := base64.StdEncoding.EncodeToString([]byte("p=tls-unique,,n=helloworld,r=123456"))
+	header := Gs2Header{}
+	buf1 := bytes.NewBuffer([]byte(str))
+	if err := header.Decode(buf1); err != nil {
+		t.Fatalf(err.Error())
+	}
+	p := header.Params.All()
+	if CB(string(header.CB)) != TlsUnique ||
+		header.Params.Len() != 2 ||
+		string(p[0].Key) != "n" ||
+		string(p[0].Val) != "helloworld" ||
+		string(p[1].Key) != "r" ||
+		string(p[1].Val) != "123456" {
+
+		t.Fatalf("decode gs2 header error")
+	}
+}
+
 func TestDecode(t *testing.T) {
 	str := "cD10bHMtdW5pcXVlLGE9MTIzNDU2LG49aGVsbG93b3JsZCxyPTEyMzQ1Ng=="
 	header := Gs2Header{}

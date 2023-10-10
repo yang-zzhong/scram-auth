@@ -8,7 +8,7 @@ import (
 )
 
 func errOccured(offset int, char []byte) error {
-	return errors.New(fmt.Sprintf("error on %d: unexpected char [%s]", offset, string(char)))
+	return fmt.Errorf("error on %d: unexpected char [%s]", offset, string(char))
 }
 
 const (
